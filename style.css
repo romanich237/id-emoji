@@ -280,3 +280,7 @@ h1 span { color: #f47714; }
   .emoji-tile { transition: none; }
   .emoji-tile:hover { transform: none; }
 }
+
+.load-more { display: block; margin: 20px auto 0; min-width: 190px; }
+.load-more[hidden] { display: none; }
+.emoji-tile video { pointer-events: none; }
