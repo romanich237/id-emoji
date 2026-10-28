@@ -21,6 +21,11 @@ const $ = (id) => document.getElementById(id);
 let packs = [];
 let activePack = "Все";
 let selectedEmoji = null;
+const PAGE_SIZE = 80;
+let visibleLimit = PAGE_SIZE;
+let currentRender = 0;
+let mediaObserver = null;
+const tgsPromises = new Map();
 
 function fileUrl(fileId) {
   return API + "/api/file?id=" + encodeURIComponent(fileId);
@@ -37,7 +42,7 @@ function fallback(emoji) {
   return span;
 }
 
-function createMedia(emoji) {
+function createMedia(emoji, eager = false) {
   if (!emoji.file_id) return fallback(emoji);
 
   if (emoji.type === "webp") {
@@ -51,7 +56,9 @@ function createMedia(emoji) {
 
   if (emoji.type === "webm") {
     const video = document.createElement("video");
-    video.src = fileUrl(emoji.file_id);
+    video.preload = "none";
+    if (eager) video.src = fileUrl(emoji.file_id);
+    else video.dataset.src = fileUrl(emoji.file_id);
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
@@ -71,7 +78,10 @@ function createMedia(emoji) {
       return holder;
     }
 
-    fetch(fileUrl(emoji.file_id))
+    const loadTgs = () => {
+    let task = tgsPromises.get(emoji.file_id);
+    if (!task) {
+      task = fetch(fileUrl(emoji.file_id))
       .then((response) => {
         if (!response.ok) throw new Error("Не удалось загрузить TGS");
         return response.blob();
@@ -80,7 +90,11 @@ function createMedia(emoji) {
         const stream = blob.stream().pipeThrough(new DecompressionStream("gzip"));
         return new Response(stream).json();
       })
-      .then((animationData) => {
+      .then((animationData) => animationData);
+      tgsPromises.set(emoji.file_id, task);
+      if (tgsPromises.size > 150) tgsPromises.delete(tgsPromises.keys().next().value);
+    }
+    task.then((animationData) => {
         if (!holder.isConnected) return;
         window.lottie.loadAnimation({
           container: holder,
@@ -91,9 +105,12 @@ function createMedia(emoji) {
         });
       })
       .catch(() => {
+        tgsPromises.delete(emoji.file_id);
         if (holder.isConnected) holder.replaceChildren(fallback(emoji));
       });
-
+    };
+    if (eager) loadTgs();
+    else holder._loadMedia = loadTgs;
     return holder;
   }
 
@@ -132,37 +149,77 @@ function allVisibleEmoji() {
     );
 }
 
+function ensureMediaObserver() {
+  if (mediaObserver || !("IntersectionObserver" in window)) return;
+  mediaObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const node = entry.target;
+      mediaObserver.unobserve(node);
+      if (node.dataset.src) {
+        node.src = node.dataset.src;
+        delete node.dataset.src;
+      }
+      if (node._loadMedia) {
+        node._loadMedia();
+        node._loadMedia = null;
+      }
+    }
+  }, { rootMargin: "250px" });
+}
+
+function makeTile(emoji) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "emoji-tile" + (favorites.has(emoji.id) ? " is-favorite" : "");
+  button.title = emoji.pack + " · " + emoji.id;
+  button.setAttribute("aria-label", "Получить ID эмодзи " + emoji.id);
+  const media = createMedia(emoji);
+  button.append(media);
+  if (media.dataset.src || media._loadMedia) {
+    ensureMediaObserver();
+    if (mediaObserver) mediaObserver.observe(media);
+    else {
+      if (media.dataset.src) media.src = media.dataset.src;
+      if (media._loadMedia) media._loadMedia();
+    }
+  }
+  button.addEventListener("click", () => showEmoji(emoji));
+  return button;
+}
+
+function drawEmojis(emojis, reset = true) {
+  const grid = $("grid");
+  if (reset) {
+    currentRender += 1;
+    visibleLimit = PAGE_SIZE;
+    grid.replaceChildren();
+  }
+  const count = Math.min(visibleLimit, emojis.length);
+  const fragment = document.createDocumentFragment();
+  for (let i = grid.childElementCount; i < count; i++) {
+    fragment.append(makeTile(emojis[i]));
+  }
+  grid.append(fragment);
+  $("count").textContent = emojis.length + " эмодзи";
+  $("loadMore").hidden = count >= emojis.length;
+  $("loadMore").textContent = "Показать ещё · " + (emojis.length - count);
+}
+
 function renderCatalog() {
   const emojis = allVisibleEmoji();
-  const grid = $("grid");
-  grid.replaceChildren();
-
-  for (const emoji of emojis) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "emoji-tile";
-    button.title = emoji.pack + " · " + emoji.id;
-    button.setAttribute("aria-label", "Получить ID эмодзи " + emoji.id);
-    button.append(createMedia(emoji));
-    button.addEventListener("click", () => showEmoji(emoji));
-    grid.append(button);
-  }
-
-  $("count").textContent = emojis.length + " эмодзи";
-  const failedPacks = packs.filter((pack) => pack.error).map((pack) => pack.name);
-
-  if (failedPacks.length) {
-    setStatus("Не удалось загрузить: " + failedPacks.join(", ") + ". Проверьте доступность паков и токен бота.");
-  } else {
-    setStatus(emojis.length ? "Нажми на эмодзи, чтобы скопировать ID" : "В выбранном наборе нет эмодзи");
-  }
+  drawEmojis(emojis);
+  const failed = packs.filter((pack) => pack.error).map((pack) => pack.name);
+  setStatus(failed.length
+    ? "Недоступные наборы: " + failed.join(", ")
+    : emojis.length ? "Нажми на эмодзи, чтобы скопировать ID" : "В выбранном наборе нет эмодзи");
 }
 
 function showEmoji(emoji) {
   selectedEmoji = emoji;
   $("selectedName").textContent = emoji.pack || "Telegram Emoji";
   $("selectedId").textContent = emoji.id;
-  $("preview").replaceChildren(createMedia(emoji));
+  $("preview").replaceChildren(createMedia(emoji, true));
   if (!$("details").open) $("details").showModal();
 }
 
@@ -265,14 +322,6 @@ allVisibleEmoji = function () {
   });
 };
 
-const originalRenderCatalog = renderCatalog;
-renderCatalog = function () {
-  originalRenderCatalog();
-  for (const tile of $("grid").children) {
-    const id = tile.title.split(" · ").pop();
-    if (favorites.has(id)) tile.classList.add("is-favorite");
-  }
-};
 
 const originalShowEmoji = showEmoji;
 showEmoji = function (emoji) {
@@ -408,25 +457,28 @@ function searchByStaticEmoji() {
   });
 
   renderFilters();
-  const grid = $("grid");
-  grid.replaceChildren();
-
-  for (const emoji of matches) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "emoji-tile" + (favorites.has(emoji.id) ? " is-favorite" : "");
-    button.title = emoji.pack + " · " + emoji.id;
-    button.setAttribute("aria-label", "Показать Premium Emoji " + emoji.id);
-    button.append(createMedia(emoji));
-    button.addEventListener("click", () => showEmoji(emoji));
-    grid.append(button);
-  }
-
-  $("count").textContent = matches.length + " эмодзи";
+  drawEmojis(matches);
   setStatus(matches.length
     ? "Найдено вариантов: " + matches.length + ". Нажми на эмодзи, чтобы скопировать ID."
     : "Для этого обычного эмодзи совпадений в загруженных наборах нет.");
 }
+
+$("loadMore").addEventListener("click", () => {
+  visibleLimit += PAGE_SIZE;
+  const query = $("search").value.trim();
+  if (query) {
+    const normalized = normalizeEmoji(query);
+    const matches = packs.flatMap(pack => (pack.emojis || []).map(emoji => ({
+      ...emoji, pack: pack.title || pack.name
+    }))).filter(emoji => {
+      const value = normalizeEmoji(emoji.emoji || "");
+      return value === normalized || value.includes(normalized);
+    });
+    drawEmojis(matches, false);
+  } else {
+    drawEmojis(allVisibleEmoji(), false);
+  }
+});
 
 $("searchForm").addEventListener("submit", (event) => {
   event.preventDefault();
