@@ -2,7 +2,7 @@ const CACHE_KEY = "emoji-id-catalog-v3";
 function readCache() {
   try {
     const value = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-    return value && Array.isArray(value.packs) ? value.packs : null;
+    return value && Array.isArray(value.packs) ? value : null;
   } catch {
     return null;
   }
@@ -201,8 +201,13 @@ async function initialize() {
   renderFilters();
   const cached = readCache();
   if (cached) {
-    packs = cached;
+    packs = cached.packs;
+    for (const pack of packs) {
+      if (pack.name && !packNames.includes(pack.name)) packNames.push(pack.name);
+    }
+    renderFilters();
     renderCatalog();
+    if (Date.now() - (cached.saved || 0) < 86400000) return;
   } else {
     setStatus("Загружаем эмодзи…");
   }
@@ -433,3 +438,7 @@ $("search").addEventListener("input", () => {
 });
 
 initialize();
+
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
