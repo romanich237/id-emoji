@@ -1,3 +1,67 @@
-<!doctype html>
-<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fff8f1"><title>Emoji ID — каталог Telegram Emoji</title><link rel="stylesheet" href="style.css"></head>
-<body><main class="wrap"><header><div class="logo">✦</div><div><h1>Emoji ID</h1><p>Telegram Premium Emoji · каталог ID</p></div></header><section class="intro"><h2>Найди свой эмодзи</h2><p>Выбери набор, нажми на эмодзи и скопируй его ID.</p><form id="searchForm"><input id="search" inputmode="numeric" placeholder="Поиск по ID" aria-label="Поиск по ID"><button>Найти</button></form></section><nav id="filters" aria-label="Наборы"></nav><div class="status" id="status" role="status">Загрузка каталога…</div><section id="grid" class="grid" aria-label="Эмодзи"></section><footer>© 2026 <a href="https://github.com/romanich237">romanich237</a> · Неофициальный каталог Telegram</footer></main><dialog id="details"><button class="close" id="close" aria-label="Закрыть">×</button><div id="preview"></div><h2 id="selectedName">Эмодзи</h2><code id="selectedId"></code><button id="copyId">Скопировать ID</button><button class="outline" id="copyHtml">Скопировать HTML</button></dialog><script src="script.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Каталог Telegram Premium Emoji с поиском по ID и копированием разметки.">
+  <title>Emoji ID — Telegram Premium Emoji</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Emoji ID — главная">Emoji<span>ID</span></a>
+      <a class="header-link" href="https://github.com/romanich237/id-emoji" target="_blank" rel="noopener noreferrer">
+        GitHub <span aria-hidden="true">↗</span>
+      </a>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="eyebrow"><span class="dot"></span> Каталог Telegram Emoji</div>
+        <h1 id="hero-title">Нужный эмодзи.<br><span>Нужный ID.</span></h1>
+        <p class="hero-description">Просматривай наборы Premium Emoji, выбирай понравившиеся и копируй их ID в один клик.</p>
+        <form id="searchForm" class="search-form" role="search">
+          <label class="sr-only" for="search">ID эмодзи</label>
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input id="search" type="text" inputmode="numeric" autocomplete="off" placeholder="Введи ID эмодзи">
+          <button type="submit" class="primary-button">Найти</button>
+        </form>
+      </section>
+
+      <section class="catalog" aria-labelledby="catalog-title">
+        <div class="section-heading">
+          <div>
+            <div class="section-kicker">Библиотека</div>
+            <h2 id="catalog-title">Эмодзи по наборам</h2>
+          </div>
+          <span class="count" id="count">0 эмодзи</span>
+        </div>
+        <nav id="filters" class="filters" aria-label="Фильтр наборов"></nav>
+        <p id="status" class="status" role="status">Загружаем эмодзи…</p>
+        <div id="grid" class="emoji-grid" aria-label="Каталог эмодзи"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>© 2026 <a href="https://github.com/romanich237">romanich237</a></span>
+      <span>Неофициальный каталог Telegram Emoji</span>
+    </footer>
+  </div>
+
+  <dialog id="details" class="detail-dialog" aria-labelledby="selectedName">
+    <button id="close" class="dialog-close" type="button" aria-label="Закрыть">×</button>
+    <div class="detail-topline">TELEGRAM EMOJI</div>
+    <div id="preview" class="emoji-preview"></div>
+    <h2 id="selectedName">Эмодзи</h2>
+    <p class="detail-caption">Идентификатор эмодзи</p>
+    <code id="selectedId" class="emoji-id"></code>
+    <div class="dialog-actions">
+      <button id="copyId" class="primary-button" type="button">Скопировать ID</button>
+      <button id="copyHtml" class="secondary-button" type="button">Скопировать HTML</button>
+    </div>
+  </dialog>
+</body>
+</html>
