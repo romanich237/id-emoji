@@ -44,7 +44,43 @@ function createMedia(emoji) {
     return video;
   }
 
-  // Формат TGS требует отдельного проигрывателя анимации.
+  if (emoji.type === "tgs") {
+    const holder = document.createElement("span");
+    holder.className = "tgs-animation";
+    holder.setAttribute("role", "img");
+    holder.setAttribute("aria-label", emoji.emoji || "Анимированный эмодзи");
+
+    if (!window.lottie || !("DecompressionStream" in window)) {
+      holder.append(fallback(emoji));
+      return holder;
+    }
+
+    fetch(fileUrl(emoji.file_id))
+      .then((response) => {
+        if (!response.ok) throw new Error("Не удалось загрузить TGS");
+        return response.blob();
+      })
+      .then(async (blob) => {
+        const stream = blob.stream().pipeThrough(new DecompressionStream("gzip"));
+        return new Response(stream).json();
+      })
+      .then((animationData) => {
+        if (!holder.isConnected) return;
+        window.lottie.loadAnimation({
+          container: holder,
+          renderer: "svg",
+          loop: true,
+          autoplay: true,
+          animationData
+        });
+      })
+      .catch(() => {
+        if (holder.isConnected) holder.replaceChildren(fallback(emoji));
+      });
+
+    return holder;
+  }
+
   return fallback(emoji);
 }
 
@@ -97,7 +133,13 @@ function renderCatalog() {
   }
 
   $("count").textContent = emojis.length + " эмодзи";
-  setStatus(emojis.length ? "Нажми на эмодзи, чтобы скопировать ID" : "Эмодзи пока недоступны");
+  const failedPacks = packs.filter((pack) => pack.error).map((pack) => pack.name);
+
+  if (failedPacks.length) {
+    setStatus("Не удалось загрузить: " + failedPacks.join(", ") + ". Проверьте доступность паков и токен бота.");
+  } else {
+    setStatus(emojis.length ? "Нажми на эмодзи, чтобы скопировать ID" : "В выбранном наборе нет эмодзи");
+  }
 }
 
 function showEmoji(emoji) {
@@ -161,8 +203,8 @@ $("searchForm").addEventListener("submit", async (event) => {
     } else {
       setStatus("Эмодзи с таким ID не найден");
     }
-  } catch {
-    setStatus("Не удалось выполнить поиск. Попробуй позднее");
+  } catch (error) {
+    setStatus(error.message || "Не удалось выполнить поиск. Попробуй позднее");
   }
 });
 
@@ -178,9 +220,9 @@ async function initialize() {
 
     packs = data.packs || [];
     renderCatalog();
-  } catch {
+  } catch (error) {
     $("count").textContent = "0 эмодзи";
-    setStatus("Не удалось загрузить каталог. Попробуй обновить страницу");
+    setStatus("Не удалось загрузить каталог: " + (error.message || "ошибка соединения"));
   }
 }
 
