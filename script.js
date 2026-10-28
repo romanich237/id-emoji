@@ -1,3 +1,19 @@
+const CACHE_KEY = "emoji-id-catalog-v3";
+function readCache() {
+  try {
+    const value = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    return value && Array.isArray(value.packs) ? value.packs : null;
+  } catch {
+    return null;
+  }
+}
+function writeCache(items) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ saved: Date.now(), packs: items }));
+  } catch {
+    // Browser storage is optional.
+  }
+}
 const API = "https://id-emoji-api.kupulluyc1242.workers.dev";
 const packNames = ["TgAndroidIcons", "NewsEmoji", "IconsInTg", "tgiosicons"];
 const $ = (id) => document.getElementById(id);
@@ -210,7 +226,13 @@ $("searchForm").addEventListener("submit", async (event) => {
 
 async function initialize() {
   renderFilters();
-  setStatus("Загружаем эмодзи…");
+  const cached = readCache();
+  if (cached) {
+    packs = cached;
+    renderCatalog();
+  } else {
+    setStatus("Загружаем эмодзи…");
+  }
 
   try {
     const response = await fetch(API + "/api/packs");
@@ -219,10 +241,15 @@ async function initialize() {
     if (!response.ok) throw new Error(data.error || "Ошибка API");
 
     packs = data.packs || [];
+    writeCache(packs);
     renderCatalog();
   } catch (error) {
-    $("count").textContent = "0 эмодзи";
-    setStatus("Не удалось загрузить каталог: " + (error.message || "ошибка соединения"));
+    if (cached) {
+      setStatus("Показан сохранённый каталог. Обновление пока недоступно.");
+    } else {
+      $("count").textContent = "0 эмодзи";
+      setStatus("Не удалось загрузить каталог: " + (error.message || "ошибка соединения"));
+    }
   }
 }
 
