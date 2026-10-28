@@ -196,33 +196,6 @@ $("copyHtml").addEventListener("click", () => {
   copyText(html, "copyHtml");
 });
 
-$("searchForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const id = $("search").value.trim();
-
-  if (!/^\d{1,30}$/.test(id)) {
-    setStatus("Введи числовой ID эмодзи");
-    return;
-  }
-
-  setStatus("Ищем эмодзи…");
-
-  try {
-    const response = await fetch(API + "/api/emoji?id=" + encodeURIComponent(id));
-    const data = await response.json();
-
-    if (!response.ok) throw new Error(data.error || "Ошибка API");
-
-    if (data.emojis && data.emojis.length) {
-      showEmoji(data.emojis[0]);
-      setStatus("Эмодзи найден");
-    } else {
-      setStatus("Эмодзи с таким ID не найден");
-    }
-  } catch (error) {
-    setStatus(error.message || "Не удалось выполнить поиск. Попробуй позднее");
-  }
-});
 
 async function initialize() {
   renderFilters();
@@ -252,9 +225,6 @@ async function initialize() {
     }
   }
 }
-
-initialize();
-
 
 /* Additional catalog features */
 const favoritesStorageKey = "emoji-id-favorites-v2";
@@ -388,23 +358,66 @@ $("packForm").addEventListener("submit", async (event) => {
   }
 });
 
-// Search by ID, fallback symbol, pack name or a small Russian/English dictionary.
-$("searchForm").addEventListener("submit", (event) => {
+// Match ordinary Unicode emoji against the fallback emoji supplied by Telegram.
+function normalizeEmoji(value) {
+  return value.normalize("NFC").replace(/[\uFE0E\uFE0F]/g, "").trim();
+}
+
+function searchByStaticEmoji() {
   const query = $("search").value.trim();
-  if (!query || /^\d{1,30}$/.test(query)) {
-    textFilter = "";
+  favoritesOnly = false;
+  $("onlyFavorites").textContent = "☆ Избранное";
+  activePack = "Все";
+  textFilter = "";
+
+  if (!query) {
+    renderFilters();
+    renderCatalog();
     return;
   }
 
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  favoritesOnly = false;
-  activePack = "Все";
-  textFilter = query;
-  renderFilters();
-  renderCatalog();
+  const normalized = normalizeEmoji(query);
+  const all = packs.flatMap((pack) =>
+    (pack.emojis || []).map((emoji) => ({
+      ...emoji,
+      pack: pack.title || pack.name
+    }))
+  );
 
-  if (allVisibleEmoji().length === 0) {
-    setStatus("Совпадений нет. Поиск по смыслу пока ограничен словарём.");
+  const matches = all.filter((emoji) => {
+    const fallback = normalizeEmoji(emoji.emoji || "");
+    return fallback === normalized ||
+      (normalized.length > 0 && fallback.includes(normalized));
+  });
+
+  renderFilters();
+  const grid = $("grid");
+  grid.replaceChildren();
+
+  for (const emoji of matches) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "emoji-tile" + (favorites.has(emoji.id) ? " is-favorite" : "");
+    button.title = emoji.pack + " · " + emoji.id;
+    button.setAttribute("aria-label", "Показать Premium Emoji " + emoji.id);
+    button.append(createMedia(emoji));
+    button.addEventListener("click", () => showEmoji(emoji));
+    grid.append(button);
   }
-}, true);
+
+  $("count").textContent = matches.length + " эмодзи";
+  setStatus(matches.length
+    ? "Найдено вариантов: " + matches.length + ". Нажми на эмодзи, чтобы скопировать ID."
+    : "Для этого обычного эмодзи совпадений в загруженных наборах нет.");
+}
+
+$("searchForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  searchByStaticEmoji();
+});
+
+$("search").addEventListener("input", () => {
+  searchByStaticEmoji();
+});
+
+initialize();
