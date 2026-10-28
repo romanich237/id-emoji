@@ -227,3 +227,157 @@ async function initialize() {
 }
 
 initialize();
+
+
+/* Additional catalog features */
+const favoritesStorageKey = "emoji-id-favorites-v2";
+const favorites = new Set(JSON.parse(localStorage.getItem(favoritesStorageKey) || "[]"));
+let favoritesOnly = false;
+let textFilter = "";
+const searchTerms = {
+  "огонь": "🔥", "fire": "🔥", "сердце": "❤️", "heart": "❤️",
+  "звезда": "⭐", "star": "⭐", "корона": "👑", "crown": "👑",
+  "алмаз": "💎", "diamond": "💎", "лайк": "👍", "like": "👍",
+  "ракета": "🚀", "rocket": "🚀", "кот": "🐱", "cat": "🐱",
+  "подарок": "🎁", "gift": "🎁", "деньги": "💰", "money": "💰"
+};
+
+const originalAllVisibleEmoji = allVisibleEmoji;
+allVisibleEmoji = function () {
+  const query = textFilter.toLowerCase().trim();
+  const symbol = searchTerms[query] || query;
+
+  return originalAllVisibleEmoji().filter((emoji) => {
+    if (favoritesOnly && !favorites.has(emoji.id)) return false;
+    if (!query) return true;
+    return emoji.id.includes(query) ||
+      emoji.emoji.includes(symbol) ||
+      emoji.pack.toLowerCase().includes(query);
+  });
+};
+
+const originalRenderCatalog = renderCatalog;
+renderCatalog = function () {
+  originalRenderCatalog();
+  for (const tile of $("grid").children) {
+    const id = tile.title.split(" · ").pop();
+    if (favorites.has(id)) tile.classList.add("is-favorite");
+  }
+};
+
+const originalShowEmoji = showEmoji;
+showEmoji = function (emoji) {
+  originalShowEmoji(emoji);
+  $("saveFavorite").textContent = favorites.has(emoji.id)
+    ? "★ Убрать из избранного" : "☆ В избранное";
+};
+
+$("saveFavorite").addEventListener("click", () => {
+  if (!selectedEmoji) return;
+
+  if (favorites.has(selectedEmoji.id)) {
+    favorites.delete(selectedEmoji.id);
+  } else {
+    favorites.add(selectedEmoji.id);
+  }
+
+  localStorage.setItem(favoritesStorageKey, JSON.stringify([...favorites]));
+  $("saveFavorite").textContent = favorites.has(selectedEmoji.id)
+    ? "★ Убрать из избранного" : "☆ В избранное";
+  renderCatalog();
+});
+
+$("onlyFavorites").addEventListener("click", () => {
+  favoritesOnly = !favoritesOnly;
+  $("onlyFavorites").textContent = favoritesOnly ? "★ Все эмодзи" : "☆ Избранное";
+  renderCatalog();
+});
+
+$("copyCode").addEventListener("click", () => {
+  if (!selectedEmoji) return;
+  copyText('icon_custom_emoji_id: "' + selectedEmoji.id + '"', "copyCode");
+});
+
+$("copyApi").addEventListener("click", () => {
+  copyText(API + "/api/packs", "copyApi");
+});
+
+$("exportJson").addEventListener("click", () => {
+  const data = allVisibleEmoji().map((item) => ({
+    custom_emoji_id: item.id,
+    fallback: item.emoji,
+    pack: item.pack,
+    type: item.type,
+    html: '<tg-emoji emoji-id="' + item.id + '">' + item.emoji + '</tg-emoji>'
+  }));
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "emoji-id-catalog.json";
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+});
+
+$("packForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const raw = $("packLink").value.trim();
+  const match = raw.match(/^(?:https?:\/\/)?(?:t\.me\/addemoji\/)?([a-zA-Z0-9_]{1,64})\/?$/);
+
+  if (!match) {
+    setStatus("Нужна ссылка t.me/addemoji/Название");
+    return;
+  }
+
+  const name = match[1];
+  if (packs.some((pack) => pack.name === name)) {
+    activePack = name;
+    renderFilters();
+    renderCatalog();
+    return;
+  }
+
+  setStatus("Загружаем набор…");
+  try {
+    const response = await fetch(API + "/api/packs?name=" + encodeURIComponent(name));
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Ошибка API");
+
+    const pack = data.packs && data.packs[0];
+    if (!pack || pack.error) throw new Error(pack?.error || "Набор недоступен");
+
+    packs.push(pack);
+    packNames.push(name);
+    activePack = name;
+    textFilter = "";
+    $("packLink").value = "";
+    renderFilters();
+    renderCatalog();
+  } catch (error) {
+    setStatus("Не удалось добавить набор: " + error.message);
+  }
+});
+
+// Search by ID, fallback symbol, pack name or a small Russian/English dictionary.
+$("searchForm").addEventListener("submit", (event) => {
+  const query = $("search").value.trim();
+  if (!query || /^\d{1,30}$/.test(query)) {
+    textFilter = "";
+    return;
+  }
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  favoritesOnly = false;
+  activePack = "Все";
+  textFilter = query;
+  renderFilters();
+  renderCatalog();
+
+  if (allVisibleEmoji().length === 0) {
+    setStatus("Совпадений нет. Поиск по смыслу пока ограничен словарём.");
+  }
+}, true);
