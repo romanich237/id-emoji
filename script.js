@@ -163,7 +163,7 @@ function showEmoji(emoji) {
   $("selectedName").textContent = emoji.pack || "Telegram Emoji";
   $("selectedId").textContent = emoji.id;
   $("preview").replaceChildren(createMedia(emoji));
-  $("details").showModal();
+  if (!$("details").open) $("details").showModal();
 }
 
 async function copyText(value, buttonId) {
@@ -228,7 +228,14 @@ async function initialize() {
 
 /* Additional catalog features */
 const favoritesStorageKey = "emoji-id-favorites-v2";
-const favorites = new Set(JSON.parse(localStorage.getItem(favoritesStorageKey) || "[]"));
+let savedFavorites = [];
+try {
+  const parsed = JSON.parse(localStorage.getItem(favoritesStorageKey) || "[]");
+  if (Array.isArray(parsed)) savedFavorites = parsed;
+} catch {
+  savedFavorites = [];
+}
+const favorites = new Set(savedFavorites);
 let favoritesOnly = false;
 let textFilter = "";
 const searchTerms = {
@@ -278,7 +285,11 @@ $("saveFavorite").addEventListener("click", () => {
     favorites.add(selectedEmoji.id);
   }
 
-  localStorage.setItem(favoritesStorageKey, JSON.stringify([...favorites]));
+  try {
+    localStorage.setItem(favoritesStorageKey, JSON.stringify([...favorites]));
+  } catch {
+    // Storage may be disabled.
+  }
   $("saveFavorite").textContent = favorites.has(selectedEmoji.id)
     ? "★ Убрать из избранного" : "☆ В избранное";
   renderCatalog();
@@ -347,7 +358,8 @@ $("packForm").addEventListener("submit", async (event) => {
     if (!pack || pack.error) throw new Error(pack?.error || "Набор недоступен");
 
     packs.push(pack);
-    packNames.push(name);
+    if (!packNames.includes(name)) packNames.push(name);
+    writeCache(packs);
     activePack = name;
     textFilter = "";
     $("packLink").value = "";
