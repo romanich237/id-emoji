@@ -1,1 +1,187 @@
-const API='https://id-emoji-api.kupulluyc1242.workers.dev';const names=['TgAndroidIcons','NewsEmoji','IconsInTg','tgiosicons'];const $=id=>document.getElementById(id);let packs=[],active='Все',selected=null;const file=id=>API+'/api/file?id='+encodeURIComponent(id);const status=t=>$('status').textContent=t;function media(e){if(e.type==='webp'){const img=document.createElement('img');img.src=file(e.file_id);img.alt=e.emoji||'Эмодзи';img.loading='lazy';img.onerror=()=>img.replaceWith(fallback(e));return img}if(e.type==='webm'){const v=document.createElement('video');v.src=file(e.file_id);v.autoplay=true;v.loop=true;v.muted=true;v.playsInline=true;v.onerror=()=>v.replaceWith(fallback(e));return v}return fallback(e)}function fallback(e){const s=document.createElement('span');s.className='fallback';s.textContent=e.emoji||'⭐';return s}function filters(){const nav=$('filters');nav.replaceChildren();for(const n of ['Все',...names]){const b=document.createElement('button');b.textContent=n;b.className=active===n?'active':'';b.onclick=()=>{active=n;filters();render()};nav.append(b)}}function render(){const list=packs.filter(p=>active==='Все'||p.name===active).flatMap(p=>p.emojis.map(e=>({...e,pack:p.title||p.name})));const grid=$('grid');grid.replaceChildren();for(const e of list){const b=document.createElement('button');b.className='tile';b.title=e.pack+' · '+e.id;b.append(media(e));b.onclick=()=>show(e);grid.append(b)}status(list.length?'Показано эмодзи: '+list.length:'Эмодзи пока недоступны')}function show(e){selected=e;$('selectedName').textContent=e.pack||'Telegram Emoji';$('selectedId').textContent=e.id;$('preview').replaceChildren(media(e));$('details').showModal()}$('close').onclick=()=>$('details').close();$('copyId').onclick=async()=>{if(selected)await copy(selected.id,'copyId')};$('copyHtml').onclick=async()=>{if(selected)await copy('<tg-emoji emoji-id="'+selected.id+'">'+(selected.emoji||'⭐')+'</tg-emoji>','copyHtml')};async function copy(t,id){try{await navigator.clipboard.writeText(t);const b=$(id),old=b.textContent;b.textContent='Скопировано!';setTimeout(()=>b.textContent=old,1500)}catch{status('Не удалось скопировать')}}$('searchForm').onsubmit=async ev=>{ev.preventDefault();const id=$('search').value.trim();if(!/^\d{1,30}$/.test(id)){status('Введите числовой ID');return}status('Ищем эмодзи…');try{const r=await fetch(API+'/api/emoji?id='+encodeURIComponent(id));const d=await r.json();if(!r.ok)throw Error(d.error);if(d.emojis?.length)show(d.emojis[0]);else status('Эмодзи не найден')}catch{status('Поиск недоступен. Проверьте подключение API')}}async function init(){filters();try{const r=await fetch(API+'/api/packs');const d=await r.json();if(!r.ok)throw Error(d.error);packs=d.packs||[];render()}catch{status('Каталог временно недоступен: требуется настройка Telegram API')}}init();
+const API = "https://id-emoji-api.kupulluyc1242.workers.dev";
+const packNames = ["TgAndroidIcons", "NewsEmoji", "IconsInTg", "tgiosicons"];
+const $ = (id) => document.getElementById(id);
+
+let packs = [];
+let activePack = "Все";
+let selectedEmoji = null;
+
+function fileUrl(fileId) {
+  return API + "/api/file?id=" + encodeURIComponent(fileId);
+}
+
+function setStatus(message) {
+  $("status").textContent = message;
+}
+
+function fallback(emoji) {
+  const span = document.createElement("span");
+  span.className = "fallback";
+  span.textContent = emoji.emoji || "⭐";
+  return span;
+}
+
+function createMedia(emoji) {
+  if (!emoji.file_id) return fallback(emoji);
+
+  if (emoji.type === "webp") {
+    const image = document.createElement("img");
+    image.src = fileUrl(emoji.file_id);
+    image.alt = emoji.emoji || "Telegram Emoji";
+    image.loading = "lazy";
+    image.addEventListener("error", () => image.replaceWith(fallback(emoji)));
+    return image;
+  }
+
+  if (emoji.type === "webm") {
+    const video = document.createElement("video");
+    video.src = fileUrl(emoji.file_id);
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.addEventListener("error", () => video.replaceWith(fallback(emoji)));
+    return video;
+  }
+
+  // Формат TGS требует отдельного проигрывателя анимации.
+  return fallback(emoji);
+}
+
+function renderFilters() {
+  const navigation = $("filters");
+  navigation.replaceChildren();
+
+  for (const name of ["Все", ...packNames]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "filter-button" + (name === activePack ? " active" : "");
+    button.textContent = name;
+    button.setAttribute("aria-pressed", String(name === activePack));
+
+    button.addEventListener("click", () => {
+      activePack = name;
+      renderFilters();
+      renderCatalog();
+    });
+
+    navigation.append(button);
+  }
+}
+
+function allVisibleEmoji() {
+  return packs
+    .filter((pack) => activePack === "Все" || pack.name === activePack)
+    .flatMap((pack) =>
+      (pack.emojis || []).map((emoji) => ({
+        ...emoji,
+        pack: pack.title || pack.name
+      }))
+    );
+}
+
+function renderCatalog() {
+  const emojis = allVisibleEmoji();
+  const grid = $("grid");
+  grid.replaceChildren();
+
+  for (const emoji of emojis) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "emoji-tile";
+    button.title = emoji.pack + " · " + emoji.id;
+    button.setAttribute("aria-label", "Получить ID эмодзи " + emoji.id);
+    button.append(createMedia(emoji));
+    button.addEventListener("click", () => showEmoji(emoji));
+    grid.append(button);
+  }
+
+  $("count").textContent = emojis.length + " эмодзи";
+  setStatus(emojis.length ? "Нажми на эмодзи, чтобы скопировать ID" : "Эмодзи пока недоступны");
+}
+
+function showEmoji(emoji) {
+  selectedEmoji = emoji;
+  $("selectedName").textContent = emoji.pack || "Telegram Emoji";
+  $("selectedId").textContent = emoji.id;
+  $("preview").replaceChildren(createMedia(emoji));
+  $("details").showModal();
+}
+
+async function copyText(value, buttonId) {
+  try {
+    await navigator.clipboard.writeText(value);
+    const button = $(buttonId);
+    const oldLabel = button.textContent;
+    button.textContent = "Скопировано!";
+    window.setTimeout(() => {
+      button.textContent = oldLabel;
+    }, 1400);
+  } catch {
+    setStatus("Не удалось скопировать текст");
+  }
+}
+
+$("close").addEventListener("click", () => $("details").close());
+$("details").addEventListener("click", (event) => {
+  if (event.target === $("details")) $("details").close();
+});
+
+$("copyId").addEventListener("click", () => {
+  if (selectedEmoji) copyText(selectedEmoji.id, "copyId");
+});
+
+$("copyHtml").addEventListener("click", () => {
+  if (!selectedEmoji) return;
+  const html = '<tg-emoji emoji-id="' + selectedEmoji.id + '">' +
+    (selectedEmoji.emoji || "⭐") + "</tg-emoji>";
+  copyText(html, "copyHtml");
+});
+
+$("searchForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = $("search").value.trim();
+
+  if (!/^\d{1,30}$/.test(id)) {
+    setStatus("Введи числовой ID эмодзи");
+    return;
+  }
+
+  setStatus("Ищем эмодзи…");
+
+  try {
+    const response = await fetch(API + "/api/emoji?id=" + encodeURIComponent(id));
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || "Ошибка API");
+
+    if (data.emojis && data.emojis.length) {
+      showEmoji(data.emojis[0]);
+      setStatus("Эмодзи найден");
+    } else {
+      setStatus("Эмодзи с таким ID не найден");
+    }
+  } catch {
+    setStatus("Не удалось выполнить поиск. Попробуй позднее");
+  }
+});
+
+async function initialize() {
+  renderFilters();
+  setStatus("Загружаем эмодзи…");
+
+  try {
+    const response = await fetch(API + "/api/packs");
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || "Ошибка API");
+
+    packs = data.packs || [];
+    renderCatalog();
+  } catch {
+    $("count").textContent = "0 эмодзи";
+    setStatus("Не удалось загрузить каталог. Попробуй обновить страницу");
+  }
+}
+
+initialize();
