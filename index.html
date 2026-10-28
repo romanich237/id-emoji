@@ -32,6 +32,20 @@
         </form>
       </section>
 
+      <section class="extras">
+        <form id="packForm" class="pack-form">
+          <label for="packLink">Добавить набор эмодзи по ссылке</label>
+          <div class="extras-row">
+            <input id="packLink" placeholder="https://t.me/addemoji/PackName">
+            <button type="submit" class="primary-button">Добавить</button>
+          </div>
+        </form>
+        <div class="extras-row">
+          <button id="onlyFavorites" class="secondary-button" type="button">☆ Избранное</button>
+          <button id="exportJson" class="secondary-button" type="button">Экспорт JSON</button>
+          <button id="copyApi" class="secondary-button" type="button">API</button>
+        </div>
+      </section>
       <section class="catalog" aria-labelledby="catalog-title">
         <div class="section-heading">
           <div>
@@ -59,9 +73,11 @@
     <h2 id="selectedName">Эмодзи</h2>
     <p class="detail-caption">Идентификатор эмодзи</p>
     <code id="selectedId" class="emoji-id"></code>
+    <button id="saveFavorite" type="button" class="secondary-button">☆ В избранное</button>
     <div class="dialog-actions">
       <button id="copyId" class="primary-button" type="button">Скопировать ID</button>
       <button id="copyHtml" class="secondary-button" type="button">Скопировать HTML</button>
+      <button id="copyCode" class="secondary-button" type="button">Код кнопки</button>
     </div>
   </dialog>
 </body>
