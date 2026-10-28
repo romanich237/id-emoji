@@ -188,3 +188,21 @@ h1 span { color: #f47714; }
   .extras-row { width: 100%; }
   .extras-row button { flex: 1 1 auto; }
 }
+
+/* Neutral contrasting canvas makes white and pale custom emoji visible. */
+.emoji-tile,
+.emoji-tile:hover,
+.emoji-tile.is-favorite {
+  background-color: #cbd0d6;
+  background-image: linear-gradient(135deg, #e0e3e8, #b7bec7);
+  border-color: #aeb5bf;
+}
+.emoji-tile:hover {
+  background-image: linear-gradient(135deg, #d7dce3, #a9b3bf);
+  border-color: #f47916;
+}
+.emoji-tile.is-favorite { border-color: #f47916; }
+.emoji-preview {
+  background-color: #cbd0d6;
+  background-image: linear-gradient(135deg, #e0e3e8, #b7bec7);
+}
